@@ -269,7 +269,17 @@ if(EMSCRIPTEN)
         "-sFULL_ES3=1"
         "-sGL_ENABLE_GET_PROC_ADDRESS=1"
         "-sASYNCIFY=1"
-        "-sASYNCIFY_STACK_SIZE=131072"
+        # The asyncify stack has to hold the whole unwound C++ call stack at the moment the engine
+        # yields, and this engine yields from inside its frame, at whatever depth it happens to be:
+        # streaming, cutscene setup and the renderer all nest deeply, and traffic and scene contents
+        # change the depth from one run to the next. 128 KB against a 5 MB C++ stack left that to
+        # luck, and the release build compiles no check — Emscripten only raises "asyncify stack
+        # overflow" under ASSERTIONS, so an overflow here writes past the buffer and corrupts
+        # whatever follows it in linear memory. The failure is silent, and it lands wherever the
+        # stack happened to be deep: the same scene survives one run and wedges the next.
+        #
+        # 1 MB of a 1 GiB heap is nothing to give up for removing that.
+        "-sASYNCIFY_STACK_SIZE=1048576"
         "-sFORCE_FILESYSTEM=1"
         "-lidbfs.js"
         "-sEXIT_RUNTIME=0"
