@@ -128,11 +128,40 @@ CdStreamRead(int32 channel, void *buffer, uint32 offset, uint32 size)
 	pChannel->bReading = true;
 
 	// The read the worker thread would have done, done here.
-	lseek(pChannel->hFile, (size_t)pChannel->nSectorOffset * (size_t)CDSTREAM_SECTOR_SIZE, SEEK_SET);
-	if (read(pChannel->hFile, pChannel->pBuffer, pChannel->nSectorsToRead * CDSTREAM_SECTOR_SIZE) == -1)
-		pChannel->nStatus = STREAM_ERROR;
-	else
-		pChannel->nStatus = STREAM_NONE; // success — see the note at the top
+	//
+	// A failure here must NOT be reported as STREAM_ERROR, however much it looks like the honest
+	// thing to do. CStreaming::LoadAllRequestedModels retries on a non-zero status:
+	//
+	//     do   status = CdStreamRead(0, buf, imgOffset+posn, size);
+	//     while(CdStreamSync(0) || status == STREAM_NONE);
+	//
+	// — no body, no yield, no bail-out, and STREAM_ERROR is 0xFE, so the condition stays true.
+	// On POSIX a retry re-queues the request to a worker thread and may well succeed, which is
+	// why that loop is safe there. Here the read has already happened, synchronously, on the one
+	// thread the page has: the retry re-runs the identical call and fails identically. The loop
+	// then never exits and never yields — 100% CPU, the tab wedged, no way out but killing it.
+	//
+	// The reachable cause is an image that is not open. CdStreamRemoveImages() zeroes every entry
+	// in gImgFiles, and LoadPlayerDff() calls it after adding gta3.img on the fly, so hFile can
+	// legitimately be -1 by the time a queued request reaches this line — and read(-1, ...) is
+	// -1 every time, for ever.
+	//
+	// So: hand back zeroed sectors and report the read as done. A model that comes out wrong
+	// beats a page that never comes back, and the engine already survives a bad buffer far
+	// better than it survives a function that does not return.
+	bool ok = false;
+	if (pChannel->hFile >= 0) {
+		lseek(pChannel->hFile, (size_t)pChannel->nSectorOffset * (size_t)CDSTREAM_SECTOR_SIZE, SEEK_SET);
+		ok = read(pChannel->hFile, pChannel->pBuffer, pChannel->nSectorsToRead * CDSTREAM_SECTOR_SIZE) != -1;
+	}
+	if (!ok) {
+		if (pChannel->pBuffer != nil)
+			memset(pChannel->pBuffer, 0, (size_t)pChannel->nSectorsToRead * (size_t)CDSTREAM_SECTOR_SIZE);
+		printf("[DBG] CdStreamRead: image %d (fd %d) unreadable at sector %u — zero-filled %u sectors "
+		       "rather than report an error the caller would retry for ever\n",
+		       (int)_GET_INDEX(offset), pChannel->hFile, pChannel->nSectorOffset, pChannel->nSectorsToRead);
+	}
+	pChannel->nStatus = STREAM_NONE; // success — see the note at the top
 
 	pChannel->nSectorsToRead = 0;
 	pChannel->bReading = false;

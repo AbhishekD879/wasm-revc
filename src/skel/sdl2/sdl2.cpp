@@ -74,6 +74,7 @@ EM_ASYNC_JS(void, reVCYieldFrame, (), {
 #include "FileMgr.h"
 #include "Text.h"
 #include "Pad.h"
+#include "World.h"
 #include "Timer.h"
 #include "DMAudio.h"
 #include "ControllerConfig.h"
@@ -1714,6 +1715,10 @@ extern "C" EMSCRIPTEN_KEEPALIVE int ViceMenuActive(void)  { return FrontEndMenuM
 extern "C" EMSCRIPTEN_KEEPALIVE int ViceMenuScreen(void)  { return FrontEndMenuManager.m_nCurrScreen; }
 extern "C" EMSCRIPTEN_KEEPALIVE int ViceForeground(void)  { return ForegroundApp; }
 extern "C" EMSCRIPTEN_KEEPALIVE int ViceIconified(void)   { return WindowIconified; }
+/* On foot or driving. The page swaps its whole touch layout on this, the way the mobile releases
+   do — a pedal is useless on foot and a jump button is useless at the wheel. FindPlayerVehicle()
+   is the same check the game itself uses, so it flips on the exact frame the player gets in. */
+extern "C" EMSCRIPTEN_KEEPALIVE int ViceInVehicle(void)   { return FindPlayerVehicle() != nil ? 1 : 0; }
 /* Render at whatever size the page gives us, so the canvas is never scaled and never soft.
    resizeCB is the same path a desktop window resize takes: it retargets the camera and updates
    RsGlobal.maximum*, which is the space the menu lays itself out in. */
