@@ -1541,6 +1541,31 @@ bool CStream::FillBuffer(ALuint *alBuffer)
 	if( size == 0 )
 		return false;
 
+	// Refuse a decode too short to be worth playing, rather than only one of exactly zero bytes.
+	//
+	// Emscripten implements OpenAL over WebAudio, and its scheduler fills a fixed lookahead window
+	// by walking the queued buffers and advancing a cursor by each buffer's *duration*:
+	//
+	//     while (startTime < lookaheadTime) {          // lookahead is 0.1s
+	//         if (bufCursor >= bufQueue.length) { if (looping) bufCursor %= length; else break; }
+	//         audioSrc = ctx.createBufferSource(); audioSrc.start(startTime);
+	//         startTime += buf.audioBuf.duration / playbackRate;
+	//     }
+	//
+	// A buffer holding a handful of samples lasts tens of microseconds, so startTime barely moves
+	// and a looping source wraps its cursor and goes round again. Filling 0.1s in ~31us steps is
+	// some three thousand AudioBufferSourceNodes built, connected and scheduled — per call, for
+	// every source, every frame. That pegs this thread and floods the browser's audio service,
+	// which is one process shared by every tab: the whole browser stops, not just this page.
+	//
+	// mpg123 hands back exactly such a decode when it meets a damaged frame, which it does — the
+	// logs carry "part2_3_length (2496) too large for available bit count (2136)". Dropping a few
+	// milliseconds of audio there is not audible. The alternative is not audible either, because
+	// nothing is, because the browser is gone.
+	const uint32 minSamples = m_pSoundFile->GetSampleRate() / 100;  // 10ms: ten steps of lookahead, not thousands
+	if( size < minSamples * m_pSoundFile->GetSampleSize() * m_pSoundFile->GetChannels() )
+		return false;
+
 	uint32 channelSize = size / m_pSoundFile->GetChannels();
 	
 	alBufferData(alBuffer[0], AL_FORMAT_MONO16, m_pBuffer, channelSize, m_pSoundFile->GetSampleRate());
