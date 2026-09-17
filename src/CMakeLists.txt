@@ -261,15 +261,18 @@ if(EMSCRIPTEN)
         "-sEXPORT_ES6=1"
         "-sEXPORT_NAME=createReVC"
         "-sENVIRONMENT=web,worker"
-        # 1.5 GiB, up from 1. The heap is fixed and has to hold everything the engine allocates:
-        # the audio sample banks, the script, collision, paths, and up to ms_memoryAvailable of
-        # streamed models. CStreaming sized that last one at half the WHOLE heap (see the
-        # _dwMemAvailPhys fix in skel/sdl2), so a gigabyte was being divided against itself and
-        # running out was a matter of how much of the map had been driven through.
+        # 768 MB, measured rather than guessed.
         #
-        # Not 2 GiB: this codebase casts pointers to signed ints in places, and 1.5 GiB keeps every
-        # address comfortably below 2^31 instead of exactly at it.
-        "-sINITIAL_MEMORY=1610612736"
+        # This was 1 GiB, and I raised it to 1.5 GiB on the theory that streaming was exhausting
+        # it. Reports from the instrumented build settled that: mallinfo reports 16 MB at the menu
+        # rising to 45 MB after 77 seconds of play, against a ceiling of 1536. The heap was never
+        # close to full, and the extra half-gigabyte was committed for nothing — it took the whole
+        # renderer to 3546 MB, which is the one number in those reports that stands out.
+        #
+        # 768 MB leaves better than an order of magnitude of headroom over anything observed, and
+        # ABORTING_MALLOC below means the day it is not enough, it says so instead of corrupting
+        # memory in silence.
+        "-sINITIAL_MEMORY=805306368"
         # A failed allocation must not be quiet. Without this, dlmalloc hands back 0, reVC does not
         # check it, and wasm has no page protection at address 0 — so the write lands on real
         # memory and corrupts it. That is silent, instant, and untraceable, which is exactly the
