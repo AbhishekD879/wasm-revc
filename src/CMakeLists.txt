@@ -261,7 +261,20 @@ if(EMSCRIPTEN)
         "-sEXPORT_ES6=1"
         "-sEXPORT_NAME=createReVC"
         "-sENVIRONMENT=web,worker"
-        "-sINITIAL_MEMORY=1073741824"
+        # 1.5 GiB, up from 1. The heap is fixed and has to hold everything the engine allocates:
+        # the audio sample banks, the script, collision, paths, and up to ms_memoryAvailable of
+        # streamed models. CStreaming sized that last one at half the WHOLE heap (see the
+        # _dwMemAvailPhys fix in skel/sdl2), so a gigabyte was being divided against itself and
+        # running out was a matter of how much of the map had been driven through.
+        #
+        # Not 2 GiB: this codebase casts pointers to signed ints in places, and 1.5 GiB keeps every
+        # address comfortably below 2^31 instead of exactly at it.
+        "-sINITIAL_MEMORY=1610612736"
+        # A failed allocation must not be quiet. Without this, dlmalloc hands back 0, reVC does not
+        # check it, and wasm has no page protection at address 0 — so the write lands on real
+        # memory and corrupts it. That is silent, instant, and untraceable, which is exactly the
+        # shape of the freeze being chased. Abort instead, so onAbort names it.
+        "-sABORTING_MALLOC=1"
         "-sALLOW_MEMORY_GROWTH=0"
         "-sSTACK_SIZE=5242880"
         "-sMIN_WEBGL_VERSION=2"

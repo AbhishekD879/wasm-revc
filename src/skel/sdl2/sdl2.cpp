@@ -8,6 +8,7 @@ long _dwOperatingSystemVersion;
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include <emscripten/heap.h>
+#include <malloc.h>   // mallinfo, for the free-heap figure psInitialize reports
 
 /*
  * One frame's worth of yielding, on the browser's own clock.
@@ -501,10 +502,26 @@ psInitialize(void)
 #endif
 
 #if defined(__EMSCRIPTEN__)
-    // There is no OS to ask. The heap the module was linked with is the whole budget, and the
-    // engine only uses this to size its own pools.
-    _dwMemAvailPhys = (long)emscripten_get_heap_size();
-    debug("Wasm heap size %lu\n", (unsigned long)emscripten_get_heap_size());
+    // Every other platform here reports memory that is FREE — freeram on Linux, free_count on
+    // macOS, dwAvailPhys on Windows — and CStreaming relies on that: MakeSpaceFor() takes
+    // ms_memoryAvailable = (_dwMemAvailPhys - 10MB) / 2 and treats the result as a cap on streamed
+    // models alone. Reporting the whole heap instead handed it half of everything, including the
+    // half already spoken for by the audio sample banks, the script, collision and paths. On a
+    // fixed, non-growable heap that is a budget guaranteed to be exceeded eventually, and the
+    // failure is silent: malloc returns 0, reVC does not check it, and address 0 in wasm is
+    // ordinary writable memory.
+    //
+    // mallinfo() gives what this process has actually taken, so total minus that is the honest
+    // answer to the question being asked. MakeSpaceFor computes its budget lazily on first use,
+    // by which time the big allocations have happened, so this is read at a useful moment.
+    {
+        struct mallinfo mi = mallinfo();
+        size_t heapTotal = emscripten_get_heap_size();
+        size_t heapUsed = (size_t)mi.uordblks;
+        _dwMemAvailPhys = heapTotal > heapUsed ? heapTotal - heapUsed : 0;
+        debug("Wasm heap %lu total, %lu used, %lu available to stream into\n",
+              (unsigned long)heapTotal, (unsigned long)heapUsed, (unsigned long)_dwMemAvailPhys);
+    }
 #elif !defined(__APPLE__)
     struct sysinfo systemInfo;
     sysinfo(&systemInfo);
