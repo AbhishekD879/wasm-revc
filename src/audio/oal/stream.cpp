@@ -1751,6 +1751,20 @@ void CStream::Update()
 
 		// Relying a lot on left buffer states in here
 
+		// This loop waits for the left and right sources to agree on how many buffers they have
+		// finished. With one mixer driving both, as on every desktop backend, they agree within a
+		// poll or two and the loop is free.
+		//
+		// Emscripten implements OpenAL over WebAudio, where the two sources are independent graphs
+		// advanced separately against audioCtx.currentTime. They can drift apart and stay apart,
+		// and then this never exits: a bare spin, no bound, no yield, on the main thread. Captured
+		// in the act — 94% CPU with alGetSourcei at the top of the stack, inside an asyncify
+		// rewind, the page unable to answer a debugger for minutes.
+		//
+		// So it is bounded. If they will not agree, take the smaller count: unqueuing fewer
+		// buffers than a source has finished is always safe, and the next Update collects the
+		// rest. Half a millisecond of skew is not worth a dead tab.
+		int spins = 0;
 		do
 		{
 			//alSourcef(m_pAlSources[0], AL_ROLLOFF_FACTOR, 0.0f);
@@ -1759,9 +1773,15 @@ void CStream::Update()
 			//alSourcef(m_pAlSources[1], AL_ROLLOFF_FACTOR, 0.0f);
 			alGetSourcei(m_pAlSources[1], AL_BUFFERS_QUEUED, &totalBuffers[1]);
 			alGetSourcei(m_pAlSources[1], AL_BUFFERS_PROCESSED, &buffersProcessed[1]);
-		} while (buffersProcessed[0] != buffersProcessed[1]);
+		} while (buffersProcessed[0] != buffersProcessed[1] && ++spins < 64);
 
-		assert(buffersProcessed[0] == buffersProcessed[1]);
+		if (buffersProcessed[0] != buffersProcessed[1]) {
+			int agreed = Min(buffersProcessed[0], buffersProcessed[1]);
+			debug("Stream sources disagree on processed buffers (%d vs %d) after %d polls; "
+			      "taking %d\n", buffersProcessed[0], buffersProcessed[1], spins, agreed);
+			buffersProcessed[0] = buffersProcessed[1] = agreed;
+			totalBuffers[0] = Min(totalBuffers[0], totalBuffers[1]);
+		}
 
 		// Correcting OpenAL concepts here:
 		// AL_BUFFERS_QUEUED = Number of *all* buffers in queue, including processed, processing and pending
