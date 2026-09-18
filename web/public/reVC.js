@@ -785,7 +785,7 @@ async function createWasm() {
 
 // === Body ===
 var ASM_CONSTS = {
-  480726: () => {
+  480806: () => {
     if (typeof FS === "undefined" || !FS.syncfs) return;
     clearTimeout(Module.__viceSyncTimer);
     Module.__viceSyncTimer = setTimeout(function() {
@@ -794,7 +794,7 @@ var ASM_CONSTS = {
       });
     }, 400);
   },
-  480966: () => {
+  481046: () => {
     var tags = (navigator.languages && navigator.languages.length ? navigator.languages : [ navigator.language || "en" ]);
     var tag = String(tags[0]).toLowerCase();
     if (tag.indexOf("pt") === 0) return 8;
@@ -806,12 +806,12 @@ var ASM_CONSTS = {
     if (tag.indexOf("ja") === 0) return 7;
     return 0;
   },
-  481411: $0 => {
+  481491: $0 => {
     try {
       localStorage.setItem("vice.mode", $0);
     } catch (e) {}
   },
-  481475: () => {
+  481555: () => {
     try {
       var v = parseInt(localStorage.getItem("vice.mode"), 10);
       return isNaN(v) ? -1 : v;
@@ -819,14 +819,14 @@ var ASM_CONSTS = {
       return -1;
     }
   },
-  481595: () => {
+  481675: () => {
     try {
       return localStorage.getItem("vice.aspect") === "4:3" ? 1 : 0;
     } catch (e) {
       return 0;
     }
   },
-  481693: () => {
+  481773: () => {
     if (typeof (AudioContext) !== "undefined") {
       return true;
     } else if (typeof (webkitAudioContext) !== "undefined") {
@@ -834,7 +834,7 @@ var ASM_CONSTS = {
     }
     return false;
   },
-  481840: () => {
+  481920: () => {
     if ((typeof (navigator.mediaDevices) !== "undefined") && (typeof (navigator.mediaDevices.getUserMedia) !== "undefined")) {
       return true;
     } else if (typeof (navigator.webkitGetUserMedia) !== "undefined") {
@@ -842,7 +842,7 @@ var ASM_CONSTS = {
     }
     return false;
   },
-  482074: $0 => {
+  482154: $0 => {
     if (typeof (Module["SDL2"]) === "undefined") {
       Module["SDL2"] = {};
     }
@@ -866,11 +866,11 @@ var ASM_CONSTS = {
     }
     return SDL2.audioContext === undefined ? -1 : 0;
   },
-  482626: () => {
+  482706: () => {
     var SDL2 = Module["SDL2"];
     return SDL2.audioContext.sampleRate;
   },
-  482694: ($0, $1, $2, $3) => {
+  482774: ($0, $1, $2, $3) => {
     var SDL2 = Module["SDL2"];
     var have_microphone = function(stream) {
       if (SDL2.capture.silenceTimer !== undefined) {
@@ -912,7 +912,7 @@ var ASM_CONSTS = {
       }, have_microphone, no_microphone);
     }
   },
-  484387: ($0, $1, $2, $3) => {
+  484467: ($0, $1, $2, $3) => {
     var SDL2 = Module["SDL2"];
     SDL2.audio.scriptProcessorNode = SDL2.audioContext["createScriptProcessor"]($1, 0, $0);
     SDL2.audio.scriptProcessorNode["onaudioprocess"] = function(e) {
@@ -944,7 +944,7 @@ var ASM_CONSTS = {
       SDL2.audio.silenceTimer = setInterval(silence_callback, ($1 / SDL2.audioContext.sampleRate) * 1e3);
     }
   },
-  485562: ($0, $1) => {
+  485642: ($0, $1) => {
     var SDL2 = Module["SDL2"];
     var numChannels = SDL2.capture.currentCaptureBuffer.numberOfChannels;
     for (var c = 0; c < numChannels; ++c) {
@@ -963,7 +963,7 @@ var ASM_CONSTS = {
       }
     }
   },
-  486167: ($0, $1) => {
+  486247: ($0, $1) => {
     var SDL2 = Module["SDL2"];
     var buf = $0 >>> 2;
     var numChannels = SDL2.audio.currentOutputBuffer["numberOfChannels"];
@@ -977,7 +977,7 @@ var ASM_CONSTS = {
       }
     }
   },
-  486656: $0 => {
+  486736: $0 => {
     var SDL2 = Module["SDL2"];
     if ($0) {
       if (SDL2.capture.silenceTimer !== undefined) {
@@ -1011,7 +1011,7 @@ var ASM_CONSTS = {
       SDL2.audioContext = undefined;
     }
   },
-  487662: ($0, $1, $2) => {
+  487742: ($0, $1, $2) => {
     var w = $0;
     var h = $1;
     var pixels = $2;
@@ -1082,7 +1082,7 @@ var ASM_CONSTS = {
     }
     SDL2.ctx.putImageData(SDL2.image, 0, 0);
   },
-  489130: ($0, $1, $2, $3, $4) => {
+  489210: ($0, $1, $2, $3, $4) => {
     var w = $0;
     var h = $1;
     var hot_x = $2;
@@ -1119,18 +1119,18 @@ var ASM_CONSTS = {
     stringToUTF8(url, urlBuf, url.length + 1);
     return urlBuf;
   },
-  490118: $0 => {
+  490198: $0 => {
     if (Module["canvas"]) {
       Module["canvas"].style["cursor"] = UTF8ToString($0);
     }
   },
-  490201: () => {
+  490281: () => {
     if (Module["canvas"]) {
       Module["canvas"].style["cursor"] = "none";
     }
   },
-  490270: () => window.innerWidth,
-  490300: () => window.innerHeight
+  490350: () => window.innerWidth,
+  490380: () => window.innerHeight
 };
 
 function __asyncjs__reVCYieldFrame() {

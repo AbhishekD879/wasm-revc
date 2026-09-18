@@ -121,6 +121,10 @@ static psGlobalType PsGlobal;
 
 static SDL_GameController* gamepad1 = nullptr;
 static SDL_GameController* gamepad2 = nullptr;
+#ifdef __EMSCRIPTEN__
+void joysChangeCB(int jid, int event);
+void ViceAdoptPadsAppearedSinceStartup(void);
+#endif
 
 #define PSGLOBAL(var) (((psGlobalType *)(RsGlobal.ps))->var)
 
@@ -2360,6 +2364,20 @@ void CapturePad(RwInt32 padID)
 {
     static SDL_GameController* gamepad = nullptr;
 
+#ifdef __EMSCRIPTEN__
+    // Once a second, look for a pad the browser has started reporting since start-up. It costs a
+    // call to SDL_NumJoysticks and it is the difference between a controller working and being
+    // invisible to the game for the whole session.
+    {
+        static uint32 nextPadScan = 0;
+        uint32 now = SDL_GetTicks();
+        if (padID == 0 && now >= nextPadScan) {
+            nextPadScan = now + 1000;
+            ViceAdoptPadsAppearedSinceStartup();
+        }
+    }
+#endif
+
     if (padID == 0)
         gamepad = gamepad1;
     else if(padID == 1)
@@ -2456,6 +2474,43 @@ void CapturePad(RwInt32 padID)
 
     _psHandleVibration();
 }
+
+#ifdef __EMSCRIPTEN__
+/**
+ * Pick up a pad that never announced itself.
+ *
+ * The engine only ever opens a controller from an SDL_JOYDEVICEADDED event, and the enumerate-at-
+ * startup path above is commented out as unnecessary — which it is on Linux, where SDL can see
+ * every device the moment it initialises.
+ *
+ * A browser cannot. navigator.getGamepads() reports nothing at all until a button is pressed while
+ * the page has focus, so the connect event routinely happens before this page exists, or arrives
+ * while focus is elsewhere and never reaches SDL. The pad is then plainly visible to the browser —
+ * "Xbox Wireless Controller (STANDARD GAMEPAD)", four axes, eighteen buttons — and completely
+ * invisible to the game, for ever, because nothing ever asks again.
+ *
+ * So ask again. SDL_NumJoysticks() is cheap and this runs once a second, not once a frame.
+ */
+void ViceAdoptPadsAppearedSinceStartup(void)
+{
+    if (PSGLOBAL(joy1id) != -1 && PSGLOBAL(joy2id) != -1)
+        return;
+
+    for (int i = 0; i < SDL_NumJoysticks(); i++) {
+        if (!SDL_IsGameController(i) || IsThisJoystickBlacklisted(i))
+            continue;
+
+        SDL_JoystickID instance = SDL_JoystickGetDeviceInstanceID(i);
+        if (instance == PSGLOBAL(joy1id) || instance == PSGLOBAL(joy2id))
+            continue;   // already ours
+
+        debug("Adopting gamepad %d (%s) that arrived without a connect event\n",
+              i, SDL_JoystickNameForIndex(i) ? SDL_JoystickNameForIndex(i) : "unnamed");
+        joysChangeCB(i, SDL_JOYDEVICEADDED);
+        return;         // one per pass; the next pass takes the second pad if there is one
+    }
+}
+#endif
 
 void joysChangeCB(int jid, int event)
 {
