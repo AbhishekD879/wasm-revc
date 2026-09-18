@@ -2493,6 +2493,28 @@ void CapturePad(RwInt32 padID)
  */
 void ViceAdoptPadsAppearedSinceStartup(void)
 {
+    // Retire a pad that has gone away before looking for a new one.
+    //
+    // A slot is only released by SDL_JOYDEVICEREMOVED carrying the matching instance id, and that
+    // event does not always reach SDL here — the page sees gamepaddisconnected while SDL's
+    // joystick layer does not. A wireless pad that sleeps and wakes, which is what an Xbox
+    // controller on Bluetooth does constantly, then comes back with a *new* instance id: slot one
+    // is still held by the dead handle, so the returning pad is adopted as player two and the game
+    // reads nothing from it ever again. That is a controller that "worked and then stopped", with
+    // the browser still listing it as connected the whole time.
+    if (gamepad1 != nullptr && !SDL_GameControllerGetAttached(gamepad1)) {
+        debug("Gamepad 1 went away without a remove event; freeing the slot\n");
+        SDL_GameControllerClose(gamepad1);
+        gamepad1 = nullptr;
+        PSGLOBAL(joy1id) = -1;
+    }
+    if (gamepad2 != nullptr && !SDL_GameControllerGetAttached(gamepad2)) {
+        debug("Gamepad 2 went away without a remove event; freeing the slot\n");
+        SDL_GameControllerClose(gamepad2);
+        gamepad2 = nullptr;
+        PSGLOBAL(joy2id) = -1;
+    }
+
     if (PSGLOBAL(joy1id) != -1 && PSGLOBAL(joy2id) != -1)
         return;
 
